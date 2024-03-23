@@ -4,7 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
+
+import java.util.Date;
 
 @Getter
 @Setter
@@ -21,6 +23,9 @@ public class ExchangeRate {
 
     @Column(name = "price")
     private String price;
+
+    @Column(name = "date")
+    private String date;
 
     public String getFormattedText() {
         return  price + " bitcoin";

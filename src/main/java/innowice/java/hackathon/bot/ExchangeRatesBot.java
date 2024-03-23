@@ -1,5 +1,6 @@
 package innowice.java.hackathon.bot;
 
+import innowice.java.hackathon.entity.ExchangeRate;
 import innowice.java.hackathon.entity.User;
 import innowice.java.hackathon.exception.ServiceException;
 import innowice.java.hackathon.service.RateService;
@@ -23,6 +24,9 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final String START = "/start";
     private static final String BITCOIN = "/bitcoin";
     private static final String HELP = "/help";
+
+    @Value("${cbr.currency.rates.symbol}")
+    private String symbol;
 
     @Autowired
     private RateService rateService;
@@ -85,9 +89,16 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
             String formattedDateTime = now.format(formatter);
 
-            var bitcoin = rateService.getBitcoinExchangeRate();
-            var text = "Курс Bitcoin на %s составляет %s";
+            String bitcoin = rateService.getBitcoinExchangeRate();
+            String text = "Курс Bitcoin на %s составляет %s";
             formattedText = String.format(text, formattedDateTime, bitcoin);
+
+            ExchangeRate exchangeRate = new ExchangeRate();
+            exchangeRate.setSymbol("BTCUSDT");
+            exchangeRate.setPrice(bitcoin);
+            exchangeRate.setDate(formattedDateTime);
+            rateService.save(exchangeRate);
+
         } catch (ServiceException e) {
             LOG.error("Ошибка получения курса Bitcoin", e);
             formattedText = "Не удалось получить курс Bitcoin, попробуйте позже";
@@ -96,7 +107,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void helpCommand(Long chatId) {
-        var text =  """
+        String text =  """
                 Справочная информация по боту
                 
                 Для получения текущего курса валют для BITCOIN воспользуйтесь командой:
@@ -106,7 +117,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         sendMessage(chatId, text);
     }
     private void unnoundCommand(Long chatId) {
-        var text = "Неизвестная команда";
+        String text = "Неизвестная команда";
         sendMessage(chatId, text);
     }
     private void sendMessage(Long chatId, String text) {
