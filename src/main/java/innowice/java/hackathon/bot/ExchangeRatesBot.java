@@ -48,12 +48,6 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         switch (massage){
             case START -> {
                 String userName = update.getMessage().getFrom().getUserName();
-
-                // save
-                User user = new User();
-                user.setUserName(userName);
-                userService.save(user);
-
                 startCommand(chatId, userName);
             }
             case BITCOIN -> bitcoinCommand(chatId);
@@ -68,6 +62,15 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void startCommand(Long chatId, String userName) {
+        User user = userService.findByUserName(userName);
+
+        if (user == null) {
+            user = new User();
+            user.setUserName(userName);
+            user.setChatId(chatId);
+            userService.save(user);
+        }
+
         var text = """
                 Добро пожаловать в бот, %s!
                 
@@ -95,11 +98,15 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             formattedText = String.format(text, formattedDateTime, bitcoin);
 
             // save
+            User user = userService.findByChatId(chatId);
+
             ExchangeRate exchangeRate = new ExchangeRate();
             exchangeRate.setSymbol("BTCUSDT");
             exchangeRate.setPrice(bitcoin);
             exchangeRate.setDate(formattedDateTime);
+            exchangeRate.setUserId(user.getId());
             rateService.save(exchangeRate);
+            //
 
         } catch (ServiceException e) {
             LOG.error("Ошибка получения курса Bitcoin", e);

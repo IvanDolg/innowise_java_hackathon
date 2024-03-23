@@ -19,4 +19,7 @@ public class User {
 
     @Column(name = "user_name")
     private String userName;
+
+    @Column(name = "chat_id")
+    private Long chatId;
 }

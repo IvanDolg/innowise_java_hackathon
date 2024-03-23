@@ -6,8 +6,6 @@ import lombok.ToString;
 
 import jakarta.persistence.*;
 
-import java.util.Date;
-
 @Getter
 @Setter
 @ToString
@@ -26,4 +24,7 @@ public class ExchangeRate {
 
     @Column(name = "date")
     private String date;
+
+    @Column(name = "user_id")
+    private Long userId;
 }

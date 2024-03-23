@@ -6,4 +6,5 @@ public interface UserService {
 
     User save(User user);
     User findByUserName(String userName);
+    User findByChatId(Long chatId);
 }
