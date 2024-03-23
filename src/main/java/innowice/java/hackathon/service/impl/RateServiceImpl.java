@@ -33,6 +33,6 @@ public class RateServiceImpl implements RateService {
     public String parseJsonToString(String json) {
         Gson gson = new Gson();
         ExchangeRate exchangeRate = gson.fromJson(json, ExchangeRate.class);
-        return exchangeRate.getFormattedText();
+        return exchangeRate.getPrice();
     }
 }

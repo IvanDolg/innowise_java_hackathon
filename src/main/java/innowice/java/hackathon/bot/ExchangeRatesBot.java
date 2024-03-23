@@ -49,6 +49,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             case START -> {
                 String userName = update.getMessage().getFrom().getUserName();
 
+                // save
                 User user = new User();
                 user.setUserName(userName);
                 userService.save(user);
@@ -90,9 +91,10 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             String formattedDateTime = now.format(formatter);
 
             String bitcoin = rateService.getBitcoinExchangeRate();
-            String text = "Курс Bitcoin на %s составляет %s";
+            String text = "Курс Bitcoin на %s составляет %s bitcoin";
             formattedText = String.format(text, formattedDateTime, bitcoin);
 
+            // save
             ExchangeRate exchangeRate = new ExchangeRate();
             exchangeRate.setSymbol("BTCUSDT");
             exchangeRate.setPrice(bitcoin);

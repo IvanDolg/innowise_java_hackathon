@@ -5,4 +5,5 @@ import innowice.java.hackathon.entity.User;
 public interface UserService {
 
     User save(User user);
+    User findByUserName(String userName);
 }

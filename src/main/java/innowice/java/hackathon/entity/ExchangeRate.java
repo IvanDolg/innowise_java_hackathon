@@ -26,9 +26,4 @@ public class ExchangeRate {
 
     @Column(name = "date")
     private String date;
-
-    public String getFormattedText() {
-        return  price + " bitcoin";
-    }
-
 }
