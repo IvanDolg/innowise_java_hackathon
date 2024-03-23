@@ -1,7 +1,9 @@
 package innowice.java.hackathon.bot;
 
+import innowice.java.hackathon.entity.User;
 import innowice.java.hackathon.exception.ServiceException;
 import innowice.java.hackathon.service.RateService;
+import innowice.java.hackathon.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,9 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     @Autowired
     private RateService rateService;
 
+    @Autowired
+    private UserService userService;
+
     public ExchangeRatesBot(@Value("${bot.token}") String botToken) {
         super(botToken);
     }
@@ -33,13 +38,17 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return;
         }
-
         var massage = update.getMessage().getText();
         var chatId = update.getMessage().getChatId();
 
         switch (massage){
             case START -> {
                 String userName = update.getMessage().getFrom().getUserName();
+
+                User user = new User();
+                user.setUserName(userName);
+                userService.save(user);
+
                 startCommand(chatId, userName);
             }
             case BITCOIN -> bitcoinCommand(chatId);
