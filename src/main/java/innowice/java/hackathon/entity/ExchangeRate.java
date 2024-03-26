@@ -25,6 +25,6 @@ public class ExchangeRate {
     @Column(name = "date")
     private String date;
 
-    @Column(name = "user_id")
-    private Long userId;
+    @Column(name = "chart_id")
+    private Long chartId;
 }

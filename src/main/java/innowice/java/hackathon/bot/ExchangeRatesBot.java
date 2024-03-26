@@ -25,14 +25,16 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final String BITCOIN = "/bitcoin";
     private static final String HELP = "/help";
 
-    @Value("${cbr.currency.rates.symbol}")
-    private String symbol;
-
     @Autowired
     private RateService rateService;
 
     @Autowired
     private UserService userService;
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
+        return dateTime.format(formatter);
+    }
 
     public ExchangeRatesBot(@Value("${bot.token}") String botToken) {
         super(botToken);
@@ -65,10 +67,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         User user = userService.findByUserName(userName);
 
         if (user == null) {
-            user = new User();
-            user.setUserName(userName);
-            user.setChatId(chatId);
-            userService.save(user);
+            userService.saveUser(chatId, userName);
         }
 
         var text = """
@@ -90,23 +89,21 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         String formattedText;
         try {
             LocalDateTime now = LocalDateTime.now();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss");
-            String formattedDateTime = now.format(formatter);
+            String formattedDateTime = formatDateTime(now);
 
             String bitcoin = rateService.getBitcoinExchangeRate();
             String text = "Курс Bitcoin на %s составляет %s bitcoin";
             formattedText = String.format(text, formattedDateTime, bitcoin);
 
-            // save
-            User user = userService.findByChatId(chatId);
+            ExchangeRate exchangeRate = rateService.findByChartId(chatId);
 
-            ExchangeRate exchangeRate = new ExchangeRate();
-            exchangeRate.setSymbol("BTCUSDT");
-            exchangeRate.setPrice(bitcoin);
-            exchangeRate.setDate(formattedDateTime);
-            exchangeRate.setUserId(user.getId());
-            rateService.save(exchangeRate);
-            //
+            if (exchangeRate == null) {
+                rateService.saveExchangeRate(chatId, bitcoin, formattedDateTime);
+            } else {
+                exchangeRate.setPrice(bitcoin);
+                exchangeRate.setDate(formattedDateTime);
+                rateService.save(exchangeRate);
+            }
 
         } catch (ServiceException e) {
             LOG.error("Ошибка получения курса Bitcoin", e);

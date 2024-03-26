@@ -17,6 +17,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User saveUser(Long chatId, String userName) {
+        User user = new User();
+        user.setUserName(userName);
+        user.setChatId(chatId);
+        return save(user);
+    }
+
+    @Override
     public User findByUserName(String userName) {
         return userRepository.findByUserName(userName);
     }

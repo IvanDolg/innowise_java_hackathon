@@ -30,6 +30,21 @@ public class RateServiceImpl implements RateService {
         return exchangeRateRepository.save(exchangeRate);
     }
 
+    @Override
+    public ExchangeRate saveExchangeRate(Long chatId, String bitcoinRate, String formattedDateTime) {
+        ExchangeRate exchangeRate = new ExchangeRate();
+        exchangeRate.setSymbol("BTCUSDT");
+        exchangeRate.setPrice(bitcoinRate);
+        exchangeRate.setDate(formattedDateTime);
+        exchangeRate.setChartId(chatId);
+        return save(exchangeRate);
+    }
+
+    @Override
+    public ExchangeRate findByChartId(Long chartId) {
+        return exchangeRateRepository.findByChartId(chartId);
+    }
+
     public String parseJsonToString(String json) {
         Gson gson = new Gson();
         ExchangeRate exchangeRate = gson.fromJson(json, ExchangeRate.class);
