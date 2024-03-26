@@ -9,12 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -22,6 +19,8 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Timer;
+import java.util.TimerTask;
 
 @Component
 @EnableScheduling
@@ -43,6 +42,11 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final String DOWN_15 = "/down_15";
 
     private Long chatId;
+    private String formattedText;
+    private double previousBitcoinValue;
+    private double percent;
+
+    Timer timer = new Timer();
 
     @Autowired
     private RateService rateService;
@@ -75,15 +79,15 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             case PUSH_MESSAGE -> pushMessageCommand(chatId);
             case HELP -> helpCommand(chatId);
             case UP -> upCommand(chatId);
-            case UP_3 -> upCommand_3(chatId);
-            /*case UP_5 -> upCommand_5(chatId);
-            case UP_10 -> upCommand_10(chatId);
-            case UP_15 -> upCommand_15(chatId);*/
+            case UP_3 -> upCommandResult(chatId, percent = 0.01);
+            case UP_5 -> upCommandResult(chatId, percent = 5);
+            case UP_10 -> upCommandResult(chatId, percent = 10);
+            case UP_15 -> upCommandResult(chatId, percent = 15);
             case DOWN -> downCommand(chatId);
-            case DOWN_3 -> downCommand_3(chatId);
-            /*case DOWN_5 -> downCommand_5(chatId);
-            case DOWN_10 -> downCommand_10(chatId);
-            case DOWN_15 -> downCommand_15(chatId);*/
+            case DOWN_3 -> downCommandResult(chatId, percent = 3);
+            case DOWN_5 -> downCommandResult(chatId, percent = 5);
+            case DOWN_10 -> downCommandResult(chatId, percent = 10);
+            case DOWN_15 -> downCommandResult(chatId, percent = 15);
             default -> unnoundCommand(chatId);
         }
     }
@@ -100,7 +104,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             userService.saveUser(chatId, userName);
         }
 
-        var text = """
+        String text = """
                 Добро пожаловать в бот, %s!
                 
                 Здесь Вы сможете узнать курс валют для BITCOIN на сегодня и узнать о поовышении или понижении валюты.
@@ -117,7 +121,6 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void bitcoinCommand(Long chatId) {
-        String formattedText;
         try {
             LocalDateTime now = LocalDateTime.now();
             String formattedDateTime = formatDateTime(now);
@@ -156,22 +159,24 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             ExchangeRate exchangeRate = rateService.findByChartId(this.chatId);
 
             if (exchangeRate == null) {
+                previousBitcoinValue = Double.parseDouble(exchangeRate.getPrice());
+
                 rateService.saveExchangeRate(this.chatId, bitcoin, formattedDateTime);
             } else {
+                previousBitcoinValue = Double.parseDouble(exchangeRate.getPrice());
+
                 exchangeRate.setPrice(bitcoin);
                 exchangeRate.setDate(formattedDateTime);
                 rateService.save(exchangeRate);
             }
-
             // Логирование успешного обновления данных
             LOG.info("Данные Bitcoin обновлены: курс {}, время обновления {}", bitcoin, formattedDateTime);
-
         } catch (ServiceException e) {
             LOG.error("Ошибка обновления курса Bitcoin", e);
         }
     }
     private void pushMessageCommand(Long chatId) {
-        var text = """
+        String text = """
                 Для получения уведомления о изменении курса валюты воспользуйтесь одной из следующих команд:
                 
                 /up - получить уведомление о повышении курса
@@ -184,7 +189,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void upCommand(Long chatId) {
-        var text = """
+        String text = """
                 Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
                 
                 /up_3 - получить уведомление при повышении на 3%
@@ -196,7 +201,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void downCommand(Long chatId) {
-        var text = """
+        String text = """
                 Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
                 
                 /down_3 - получить уведомление при повышении на 3%
@@ -206,20 +211,55 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 """;
         sendMessage(chatId, text);
     }
+    private void upCommandResult(Long chatId, double percent) {
+        try {
+            double bitcoin = Double.parseDouble(rateService.getBitcoinExchangeRate());
+            //double difference = bitcoin - previousBitcoinValue;
+            //double percentageDifference = (difference / previousBitcoinValue) * 100;
 
-    private void upCommand_3(Long chatId) {
-        var text = """
-                test push message for up bitcoin for 3%
-                """;
-        sendMessage(chatId, text);
+            double endPrice = bitcoin * ((double) (100 + percent) / 100);
+
+            if (bitcoin == endPrice || bitcoin >= endPrice) {
+                String text = "Курс Bitcoin на данный момент составляет %.2f bitcoin" +
+                        " и при понижении на %d%% курс будет изменяться на %.2f bitcoin";
+
+                String formattedText = String.format(text, bitcoin, percent, previousBitcoinValue);
+                sendMessage(chatId, formattedText);
+            } else {
+                timer.schedule(new TimerTask() {
+                    public void run() {
+                        upCommandResult(chatId, percent);
+                    }
+                }, 20000);
+            }
+        } catch (ServiceException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void downCommand_3(Long chatId) {
-        var text = """
-                test push message for down bitcoin for 3%
-                """;
-        sendMessage(chatId, text);
+    private void downCommandResult(Long chatId, double percent) {
+        try {
+            double bitcoin = Double.parseDouble(rateService.getBitcoinExchangeRate());
+            double endPrice = bitcoin * ((100 - percent) / 100);
+
+            if (bitcoin == endPrice || bitcoin < endPrice) {
+                String text = "Курс Bitcoin на данный момент составляет %.2f bitcoin" +
+                        " и при понижении на %d%% курс будет изменяться на %.2f bitcoin";
+
+                String formattedText = String.format(text, bitcoin, percent, endPrice);
+                sendMessage(chatId, formattedText);
+            } else {
+                timer.schedule(new TimerTask() {
+                    public void run() {
+                        downCommandResult(chatId, percent);
+                    }
+                }, 20000);
+            }
+        } catch (ServiceException e) {
+            throw new RuntimeException(e);
+        }
     }
+
     private void helpCommand(Long chatId) {
         String text =  """
                 Справочная информация по боту
