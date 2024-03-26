@@ -42,6 +42,8 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final String DOWN_10 = "/down_10";
     private static final String DOWN_15 = "/down_15";
 
+    private Long chatId;
+
     @Autowired
     private RateService rateService;
 
@@ -62,7 +64,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             return;
         }
         String massage = update.getMessage().getText();
-        Long chatId = update.getMessage().getChatId();
+        this.chatId = update.getMessage().getChatId();
 
         switch (massage){
             case START -> {
@@ -142,16 +144,19 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
     @Scheduled(fixedRate = 20000)
     public void updateBitcoinExchangeRate() {
+        if (this.chatId == null) {
+            return;
+        }
+
         try {
-            Long chatId = 643865332L;
             LocalDateTime now = LocalDateTime.now();
             String formattedDateTime = formatDateTime(now);
 
             String bitcoin = rateService.getBitcoinExchangeRate();
-            ExchangeRate exchangeRate = rateService.findByChartId(chatId);
+            ExchangeRate exchangeRate = rateService.findByChartId(this.chatId);
 
             if (exchangeRate == null) {
-                rateService.saveExchangeRate(chatId, bitcoin, formattedDateTime);
+                rateService.saveExchangeRate(this.chatId, bitcoin, formattedDateTime);
             } else {
                 exchangeRate.setPrice(bitcoin);
                 exchangeRate.setDate(formattedDateTime);
