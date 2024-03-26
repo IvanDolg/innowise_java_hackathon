@@ -9,7 +9,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -19,11 +24,23 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 @Component
+@EnableScheduling
 public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final Logger LOG = LoggerFactory.getLogger(ExchangeRatesBot.class);
     private static final String START = "/start";
     private static final String BITCOIN = "/bitcoin";
     private static final String HELP = "/help";
+    private static final String PUSH_MESSAGE = "/push_message";
+    private static final String UP = "/up";
+    private static final String UP_3 = "/up_3";
+    private static final String UP_5 = "/up_5";
+    private static final String UP_10 = "/up_10";
+    private static final String UP_15 = "/up_15";
+    private static final String DOWN = "/down";
+    private static final String DOWN_3 = "/down_3";
+    private static final String DOWN_5 = "/down_5";
+    private static final String DOWN_10 = "/down_10";
+    private static final String DOWN_15 = "/down_15";
 
     @Autowired
     private RateService rateService;
@@ -44,8 +61,8 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         if (!update.hasMessage() || !update.getMessage().hasText()) {
             return;
         }
-        var massage = update.getMessage().getText();
-        var chatId = update.getMessage().getChatId();
+        String massage = update.getMessage().getText();
+        Long chatId = update.getMessage().getChatId();
 
         switch (massage){
             case START -> {
@@ -53,7 +70,18 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 startCommand(chatId, userName);
             }
             case BITCOIN -> bitcoinCommand(chatId);
+            case PUSH_MESSAGE -> pushMessageCommand(chatId);
             case HELP -> helpCommand(chatId);
+            case UP -> upCommand(chatId);
+            case UP_3 -> upCommand_3(chatId);
+            /*case UP_5 -> upCommand_5(chatId);
+            case UP_10 -> upCommand_10(chatId);
+            case UP_15 -> upCommand_15(chatId);*/
+            case DOWN -> downCommand(chatId);
+            case DOWN_3 -> downCommand_3(chatId);
+            /*case DOWN_5 -> downCommand_5(chatId);
+            case DOWN_10 -> downCommand_10(chatId);
+            case DOWN_15 -> downCommand_15(chatId);*/
             default -> unnoundCommand(chatId);
         }
     }
@@ -73,10 +101,11 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         var text = """
                 Добро пожаловать в бот, %s!
                 
-                Здесь Вы сможете узнать официальный курс валют для BITCOIN на сегодня.
+                Здесь Вы сможете узнать курс валют для BITCOIN на сегодня и узнать о поовышении или понижении валюты.
                 
                 Для этого воспользуйтесь командами:
-                /bitcoin - узнать курс BITCOIN
+                /bitcoin - узнать текущий курс BITCOIN
+                /push_message - получить уведомление о изменении курса
                 
                 Дополнительные команды:
                 /help - получение справки
@@ -111,7 +140,81 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
         }
         sendMessage(chatId, formattedText);
     }
+    @Scheduled(fixedRate = 20000)
+    public void updateBitcoinExchangeRate() {
+        try {
+            Long chatId = 643865332L;
+            LocalDateTime now = LocalDateTime.now();
+            String formattedDateTime = formatDateTime(now);
 
+            String bitcoin = rateService.getBitcoinExchangeRate();
+            ExchangeRate exchangeRate = rateService.findByChartId(chatId);
+
+            if (exchangeRate == null) {
+                rateService.saveExchangeRate(chatId, bitcoin, formattedDateTime);
+            } else {
+                exchangeRate.setPrice(bitcoin);
+                exchangeRate.setDate(formattedDateTime);
+                rateService.save(exchangeRate);
+            }
+
+            // Логирование успешного обновления данных
+            LOG.info("Данные Bitcoin обновлены: курс {}, время обновления {}", bitcoin, formattedDateTime);
+
+        } catch (ServiceException e) {
+            LOG.error("Ошибка обновления курса Bitcoin", e);
+        }
+    }
+    private void pushMessageCommand(Long chatId) {
+        var text = """
+                Для получения уведомления о изменении курса валюты воспользуйтесь одной из следующих команд:
+                
+                /up - получить уведомление о повышении курса
+                /down - получить уведомление о понижении курса
+                
+                Дополнительные команды:
+                /help - получение справки
+                """;
+        sendMessage(chatId, text);
+    }
+
+    private void upCommand(Long chatId) {
+        var text = """
+                Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
+                
+                /up_3 - получить уведомление при повышении на 3%
+                /up_5 - получить уведомление при повышении на 5%
+                /up_10 - получить уведомление при повышении на 10%
+                /up_15 - получить уведомление при повышении на 15%
+                """;
+        sendMessage(chatId, text);
+    }
+
+    private void downCommand(Long chatId) {
+        var text = """
+                Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
+                
+                /down_3 - получить уведомление при повышении на 3%
+                /down_5 - получить уведомление при повышении на 5%
+                /down_10 - получить уведомление при повышении на 10%
+                /down_15 - получить уведомление при повышении на 15%
+                """;
+        sendMessage(chatId, text);
+    }
+
+    private void upCommand_3(Long chatId) {
+        var text = """
+                test push message for up bitcoin for 3%
+                """;
+        sendMessage(chatId, text);
+    }
+
+    private void downCommand_3(Long chatId) {
+        var text = """
+                test push message for down bitcoin for 3%
+                """;
+        sendMessage(chatId, text);
+    }
     private void helpCommand(Long chatId) {
         String text =  """
                 Справочная информация по боту
