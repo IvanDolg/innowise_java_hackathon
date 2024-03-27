@@ -25,6 +25,11 @@ import java.util.TimerTask;
 @Component
 @EnableScheduling
 public class ExchangeRatesBot extends TelegramLongPollingBot {
+    private Long chatId;
+    private String formattedText;
+    private double previousBitcoinValue;
+    private double percent;
+    private static final int MAX_USERS = 1;
     private static final Logger LOG = LoggerFactory.getLogger(ExchangeRatesBot.class);
     private static final String START = "/start";
     private static final String BITCOIN = "/bitcoin";
@@ -40,11 +45,6 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     private static final String DOWN_5 = "/down_5";
     private static final String DOWN_10 = "/down_10";
     private static final String DOWN_15 = "/down_15";
-
-    private Long chatId;
-    private String formattedText;
-    private double previousBitcoinValue;
-    private double percent;
 
     Timer timer = new Timer();
 
@@ -79,7 +79,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
             case PUSH_MESSAGE -> pushMessageCommand(chatId);
             case HELP -> helpCommand(chatId);
             case UP -> upCommand(chatId);
-            case UP_3 -> upCommandResult(chatId, percent = 0.01);
+            case UP_3 -> upCommandResult(chatId, percent = 3);
             case UP_5 -> upCommandResult(chatId, percent = 5);
             case UP_10 -> upCommandResult(chatId, percent = 10);
             case UP_15 -> upCommandResult(chatId, percent = 15);
@@ -98,6 +98,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
     }
 
     private void startCommand(Long chatId, String userName) {
+
         User user = userService.findByUserName(userName);
 
         if (user == null) {
@@ -111,6 +112,8 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 
                 Для этого воспользуйтесь командами:
                 /bitcoin - узнать текущий курс BITCOIN
+                
+                Для получения уведомлений о изменении курса воспользуйтесь командой:
                 /push_message - получить уведомление о изменении курса
                 
                 Дополнительные команды:
@@ -169,7 +172,6 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 exchangeRate.setDate(formattedDateTime);
                 rateService.save(exchangeRate);
             }
-            // Логирование успешного обновления данных
             LOG.info("Данные Bitcoin обновлены: курс {}, время обновления {}", bitcoin, formattedDateTime);
         } catch (ServiceException e) {
             LOG.error("Ошибка обновления курса Bitcoin", e);
@@ -193,9 +195,18 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
                 
                 /up_3 - получить уведомление при повышении на 3%
+                
                 /up_5 - получить уведомление при повышении на 5%
+                
                 /up_10 - получить уведомление при повышении на 10%
+                
                 /up_15 - получить уведомление при повышении на 15%
+                
+                Когда выбрана команда и происходит повышение стоимости монеты на заданное количество процентов,
+                вам будет отправлено уведомление.
+                
+                Дополнительные команды:
+                /help - получение справки
                 """;
         sendMessage(chatId, text);
     }
@@ -205,26 +216,36 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 Выберете команду при повышении на сколько процентов вы хотите получить уведомление:
                 
                 /down_3 - получить уведомление при повышении на 3%
+                
                 /down_5 - получить уведомление при повышении на 5%
+                
                 /down_10 - получить уведомление при повышении на 10%
+                
                 /down_15 - получить уведомление при повышении на 15%
+                
+                Когда выбрана команда и происходит понижение стоимости монеты на заданное количество процентов,
+                вам будет отправлено уведомление.
+                
+                Дополнительные команды:
+                /help - получение справки
                 """;
         sendMessage(chatId, text);
     }
     private void upCommandResult(Long chatId, double percent) {
+        if (previousBitcoinValue == 0){
+            String text = "Для получения некоторых данных нужно время. Повторите эту команду немного позже";
+            sendMessage(chatId, text);
+            return;
+        }
         try {
             double bitcoin = Double.parseDouble(rateService.getBitcoinExchangeRate());
-            //double difference = bitcoin - previousBitcoinValue;
-            //double percentageDifference = (difference / previousBitcoinValue) * 100;
+            double difference = bitcoin - previousBitcoinValue;
+            double percentageDifference = (difference / previousBitcoinValue) * 100;
 
-            double endPrice = bitcoin * ((double) (100 + percent) / 100);
-
-            if (bitcoin == endPrice || bitcoin >= endPrice) {
-                String text = "Курс Bitcoin на данный момент составляет %.2f bitcoin" +
-                        " и при понижении на %d%% курс будет изменяться на %.2f bitcoin";
-
-                String formattedText = String.format(text, bitcoin, percent, previousBitcoinValue);
-                sendMessage(chatId, formattedText);
+            if (percentageDifference >= percent) {
+                String text = "Курс Bitcoin на данный момент составляет " + bitcoin + " bitcoin" +
+                        " он подялся на " + percent + "% и более. Старая цена " + previousBitcoinValue + " bitcoin";
+                sendMessage(chatId, text);
             } else {
                 timer.schedule(new TimerTask() {
                     public void run() {
@@ -232,22 +253,28 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                     }
                 }, 20000);
             }
+
+            LOG.info("Данные Bitcoin обновлены: percentageDifference {} >= percent {}", percentageDifference, percent);
         } catch (ServiceException e) {
             throw new RuntimeException(e);
         }
     }
 
     private void downCommandResult(Long chatId, double percent) {
+        if (previousBitcoinValue == 0){
+            String text = "Для получения некоторых данных нужно время. Повторите эту команду немного позже";
+            sendMessage(chatId, text);
+            return;
+        }
         try {
             double bitcoin = Double.parseDouble(rateService.getBitcoinExchangeRate());
-            double endPrice = bitcoin * ((100 - percent) / 100);
+            double difference = bitcoin - previousBitcoinValue;
+            double percentageDifference = (difference / previousBitcoinValue) * 100;
 
-            if (bitcoin == endPrice || bitcoin < endPrice) {
-                String text = "Курс Bitcoin на данный момент составляет %.2f bitcoin" +
-                        " и при понижении на %d%% курс будет изменяться на %.2f bitcoin";
-
-                String formattedText = String.format(text, bitcoin, percent, endPrice);
-                sendMessage(chatId, formattedText);
+            if (percentageDifference <= -percent) {
+                String text = "Курс Bitcoin на данный момент составляет " + bitcoin + " bitcoin" +
+                        " он опустился на " + percent + "% и более. Старая цена " + previousBitcoinValue + " bitcoin";
+                sendMessage(chatId, text);
             } else {
                 timer.schedule(new TimerTask() {
                     public void run() {
@@ -255,6 +282,7 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                     }
                 }, 20000);
             }
+            LOG.info("Данные Bitcoin обновлены: percentageDifference {} <= percent -{}", percentageDifference, percent);
         } catch (ServiceException e) {
             throw new RuntimeException(e);
         }
@@ -267,6 +295,11 @@ public class ExchangeRatesBot extends TelegramLongPollingBot {
                 Для получения текущего курса валют для BITCOIN воспользуйтесь командой:
                 
                 /bitcoin - курс BITCOIN
+                
+                Для получения уведомлений о повышении и понижении курса воспользуйтесь командами:
+                
+                /up - получить уведомление о повышении курса
+                /down - получить уведомление о понижении курса
                 """;
         sendMessage(chatId, text);
     }
